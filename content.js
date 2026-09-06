@@ -74,18 +74,64 @@
     return document.elementFromPoint(cx, cy) === el;
   }
 
+  // A second, unrelated hijack pattern: an <a href> or <iframe> that is
+  // never visible at all (display:none / visibility:hidden / moved
+  // off-screen), sitting directly on <body>. Nothing clicks through it -
+  // instead the ad script keeps its own JS reference and fires it
+  // programmatically (anchor.click(), or drives things through the
+  // iframe). Since it's never on top of anything, none of the hit-test
+  // logic above can ever see it; it has to be matched by hidden-ness
+  // and an off-site destination instead.
+  function isHiddenRedirectProxy(el) {
+    if (!el || el.parentElement !== document.body) return false;
+
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const isHidden =
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      (rect.width <= 1 && rect.height <= 1) ||
+      rect.right < -100 ||
+      rect.bottom < -100 ||
+      rect.left > innerWidth + 100 ||
+      rect.top > innerHeight + 100;
+    if (!isHidden) return false;
+
+    if (el.tagName === "A") {
+      const href = el.getAttribute("href");
+      if (!href) return false;
+      try {
+        return new URL(href, location.href).hostname !== location.hostname;
+      } catch {
+        return false;
+      }
+    }
+
+    // A zero-size/hidden iframe injected straight onto <body> has no
+    // legitimate reason to exist there - real embeds are visible content,
+    // and hidden analytics pixels don't need off-screen positioning too.
+    return el.tagName === "IFRAME";
+  }
+
   function neutralize(el) {
     if (neutralized.has(el)) return;
     neutralized.add(el);
+    // Strip the payload itself, not just detach the node - if the ad
+    // script kept its own reference to this element, calling .click() on
+    // it (or reading .src) still works even after removal from the DOM.
+    el.removeAttribute("href");
+    el.removeAttribute("src");
     el.remove();
     blockedCount++;
     chrome.runtime?.sendMessage?.({ type: "pesky-ads:blocked", count: blockedCount });
   }
 
   function scan(root = document) {
-    const candidates = root.querySelectorAll("div, a, span");
-    for (const el of candidates) {
+    for (const el of root.querySelectorAll("div, a, span")) {
       if (isSuspiciousOverlay(el)) neutralize(el);
+    }
+    for (const el of root.querySelectorAll("a[href], iframe")) {
+      if (isHiddenRedirectProxy(el)) neutralize(el);
     }
   }
 
