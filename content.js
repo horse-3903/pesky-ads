@@ -112,4 +112,14 @@
   for (const type of ["pointerdown", "mousedown", "click"]) {
     document.addEventListener(type, handlePointerEvent, { capture: true });
   }
+
+  // Relay redirects blocked by main-world.js (window.open / location
+  // hijacks) into the same badge counter.
+  window.addEventListener("message", (e) => {
+    if (e.source !== window || e.data?.source !== "pesky-ads" || e.data.type !== "blocked") {
+      return;
+    }
+    blockedCount++;
+    chrome.runtime?.sendMessage?.({ type: "pesky-ads:blocked", count: blockedCount });
+  });
 })();
