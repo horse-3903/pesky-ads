@@ -28,6 +28,14 @@
     if (!el || el === document.documentElement || el === document.body) return false;
     if (neutralized.has(el)) return true;
 
+    // Real UI (video player controls, layout wrappers, etc.) is almost
+    // always a container with children rendered on top of it - a
+    // hijacking layer is just an empty pane injected to sit in front of
+    // everything. This single check is what keeps this from matching
+    // legitimate large/transparent/absolutely-positioned wrapper divs,
+    // which are extremely common in normal page layouts.
+    if (el.children.length > 0) return false;
+
     const style = getComputedStyle(el);
     if (!["fixed", "absolute", "sticky"].includes(style.position)) return false;
     if (style.pointerEvents === "none") return false;
@@ -45,11 +53,14 @@
     const hasVisibleText = el.innerText && el.innerText.trim().length > 0;
 
     if (!looksInvisible || hasVisibleText) return false;
+    if (zIndex < HIGH_ZINDEX && !coversBigArea) return false;
 
-    // Either it's suspiciously stacked high, or it blankets a large chunk
-    // of the viewport while being invisible - both are hallmarks of a
-    // click-hijacking layer rather than a legitimate hidden helper element.
-    return zIndex >= HIGH_ZINDEX || coversBigArea;
+    // Final check: is it actually sitting in front of real content
+    // (genuinely intercepting clicks at its own center), rather than
+    // tucked behind something visible?
+    const cx = Math.min(Math.max((rect.left + rect.right) / 2, 0), innerWidth - 1);
+    const cy = Math.min(Math.max((rect.top + rect.bottom) / 2, 0), innerHeight - 1);
+    return document.elementFromPoint(cx, cy) === el;
   }
 
   function neutralize(el) {
