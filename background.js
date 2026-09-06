@@ -8,6 +8,15 @@
 // click and lands on a different domain, treat it as a hijack and bounce
 // the tab/frame back to where it was.
 
+// Set to true to re-enable the redirect/popup watchdogs below (reverting
+// same-tab client_redirect navigations and closing popup tabs opened
+// shortly after a click). Off by default: even scoped to a short window
+// after a real click, this can still catch a legitimate cross-domain
+// popup/redirect (an OAuth login, a payment flow) that the user actually
+// wanted. Overlay and hidden-proxy removal in content.js - which only
+// touches elements that are never legitimate UI - stays active regardless.
+const REDIRECT_GUARD_ENABLED = false;
+
 const ARM_WINDOW_MS = 2500;
 const armedByTab = new Map(); // tabId -> timestamp of last real click
 const lastGoodUrlByFrame = new Map(); // "tabId:frameId" -> last non-redirect URL
@@ -46,6 +55,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 
 chrome.webNavigation.onCommitted.addListener((details) => {
+  if (!REDIRECT_GUARD_ENABLED) return;
+
   const { tabId, frameId, url, transitionQualifiers } = details;
   const key = `${tabId}:${frameId}`;
   const isClientRedirect = transitionQualifiers?.includes("client_redirect");
@@ -97,6 +108,8 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 // tab's creation here regardless of mechanism, so close it immediately
 // if it appeared right after a click and points off-site.
 chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+  if (!REDIRECT_GUARD_ENABLED) return;
+
   const { sourceTabId, tabId, url } = details;
   const armedAt = armedByTab.get(sourceTabId);
   if (!armedAt || Date.now() - armedAt > ARM_WINDOW_MS) return;
