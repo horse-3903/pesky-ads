@@ -14,8 +14,9 @@
     if (!Number.isNaN(opacity) && opacity <= 0.05) return true;
 
     const bg = style.backgroundColor;
-    const bgIsTransparent =
-      bg === "transparent" || bg === "rgba(0, 0, 0, 0)" || /rgba\([^)]*,\s*0\)$/.test(bg);
+    const alphaMatch = bg.match(/rgba?\([^)]*?,\s*([\d.]+)\s*\)$/);
+    const bgAlpha = alphaMatch ? parseFloat(alphaMatch[1]) : bg === "transparent" ? 0 : 1;
+    const bgIsTransparent = bg === "transparent" || bgAlpha <= 0.05;
     const hasBgImage = style.backgroundImage && style.backgroundImage !== "none";
     const hasBorder = style.borderStyle !== "none" && parseFloat(style.borderWidth) > 0;
     const hasShadow = style.boxShadow && style.boxShadow !== "none";
