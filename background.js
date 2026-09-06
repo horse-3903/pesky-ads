@@ -105,7 +105,11 @@ chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
     if (chrome.runtime.lastError || !sourceTab?.url) return;
     const sourceHost = hostnameOf(sourceTab.url);
     const newHost = hostnameOf(url);
-    if (!sourceHost || !newHost || sourceHost === newHost) return;
+    // A blank/empty destination (about:blank, "") is the classic
+    // popunder trick: open an empty window first, then navigate it from
+    // script a moment later, which dodges blockers that only check the
+    // URL at creation time. Treat "not clearly same-site" as suspicious.
+    if (sourceHost && newHost && sourceHost === newHost) return;
 
     chrome.tabs.remove(tabId);
     bumpBadge(sourceTabId);

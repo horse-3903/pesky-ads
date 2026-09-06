@@ -66,8 +66,7 @@
   function neutralize(el) {
     if (neutralized.has(el)) return;
     neutralized.add(el);
-    el.style.setProperty("pointer-events", "none", "important");
-    el.style.setProperty("display", "none", "important");
+    el.remove();
     blockedCount++;
     chrome.runtime?.sendMessage?.({ type: "pesky-ads:blocked", count: blockedCount });
   }
