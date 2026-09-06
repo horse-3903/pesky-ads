@@ -90,3 +90,24 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     args: [prevUrl],
   });
 });
+
+// Handles the "a new tab/window opens" case: a real <a target="_blank">
+// click never calls the JS window.open() function at all, so it can't be
+// caught by overriding it in main-world.js. Chrome still reports the new
+// tab's creation here regardless of mechanism, so close it immediately
+// if it appeared right after a click and points off-site.
+chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+  const { sourceTabId, tabId, url } = details;
+  const armedAt = armedByTab.get(sourceTabId);
+  if (!armedAt || Date.now() - armedAt > ARM_WINDOW_MS) return;
+
+  chrome.tabs.get(sourceTabId, (sourceTab) => {
+    if (chrome.runtime.lastError || !sourceTab?.url) return;
+    const sourceHost = hostnameOf(sourceTab.url);
+    const newHost = hostnameOf(url);
+    if (!sourceHost || !newHost || sourceHost === newHost) return;
+
+    chrome.tabs.remove(tabId);
+    bumpBadge(sourceTabId);
+  });
+});
