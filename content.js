@@ -5,7 +5,13 @@
 
 (() => {
   const MIN_SIZE = 24; // px, ignore tiny elements (icons, checkboxes, etc.)
-  const HIGH_ZINDEX = 100;
+  // Ad-injected hijack layers max this out (often literally 2147483647,
+  // INT32_MAX) to guarantee they sit above the host page's own stacking
+  // context. No legitimate site CSS uses values in this range - a normal
+  // player's own "click anywhere on the video" catcher tops out in the
+  // tens/hundreds at most. Keeping this very high is what avoids matching
+  // that legitimate pattern.
+  const HIGH_ZINDEX = 999999;
   const neutralized = new WeakSet();
   let blockedCount = 0;
 
@@ -35,6 +41,11 @@
     // legitimate large/transparent/absolutely-positioned wrapper divs,
     // which are extremely common in normal page layouts.
     if (el.children.length > 0) return false;
+
+    // A legitimate player's click-catcher lives deep inside that
+    // player's own container structure. Ad scripts inject their
+    // hijacking layer standalone, straight onto <body>.
+    if (el.parentElement !== document.body) return false;
 
     const style = getComputedStyle(el);
     if (!["fixed", "absolute", "sticky"].includes(style.position)) return false;
