@@ -1,7 +1,10 @@
 // Runs in the page's own JS context (not the isolated content-script world)
-// so it can intercept the redirect calls ad scripts make directly:
-// window.open(adUrl, "_self") and location.href/assign/replace to a
-// different domain. Same-origin navigation is left untouched.
+// so it can intercept redirect calls ad scripts make directly.
+//
+// Note: location.href / .assign() / .replace() are spec-mandated
+// "unforgeable" - they live as non-configurable properties on the
+// location instance itself, so they cannot be overridden here. Those
+// redirects are instead caught at the navigation level in background.js.
 
 (() => {
   const sameOrigin = (url) => {
@@ -25,32 +28,15 @@
     return nativeOpen.call(window, url, target, features);
   };
 
-  for (const method of ["assign", "replace"]) {
-    const native = Location.prototype[method];
-    Location.prototype[method] = function (url) {
-      if (url && !sameOrigin(url)) {
-        report(String(url));
-        return;
+  // Best-effort extra layer: the Navigation API can cancel some
+  // script-initiated navigations (including cross-origin ones) that
+  // property overrides can't reach.
+  if (window.navigation) {
+    window.navigation.addEventListener("navigate", (e) => {
+      if (!e.userInitiated && !sameOrigin(e.destination.url)) {
+        report(e.destination.url);
+        e.preventDefault();
       }
-      return native.call(this, url);
-    };
-  }
-
-  try {
-    const hrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, "href");
-    Object.defineProperty(Location.prototype, "href", {
-      configurable: true,
-      get: hrefDescriptor.get,
-      set(url) {
-        if (url && !sameOrigin(url)) {
-          report(String(url));
-          return;
-        }
-        hrefDescriptor.set.call(this, url);
-      },
     });
-  } catch {
-    // Some browsers don't allow redefining location.href - window.open
-    // and assign/replace overrides above still cover most redirect ads.
   }
 })();

@@ -123,4 +123,32 @@
     blockedCount++;
     chrome.runtime?.sendMessage?.({ type: "pesky-ads:blocked", count: blockedCount });
   });
+
+  // Arm background.js's navigation watchdog on every real click, so a
+  // location.href-style redirect that follows shortly after (which can't
+  // be blocked by overriding JS properties - see main-world.js) gets
+  // bounced back.
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (e.isTrusted) chrome.runtime?.sendMessage?.({ type: "pesky-ads:arm" });
+    },
+    { capture: true }
+  );
+
+  // Tag iframes with their original src so background.js can find and
+  // reset the right one if it gets hijacked into an ad landing page.
+  if (window === window.top) {
+    function tagIframes() {
+      for (const frame of document.querySelectorAll("iframe[src]:not([data-pesky-original-src])")) {
+        frame.dataset.peskyOriginalSrc = frame.src;
+      }
+    }
+    tagIframes();
+    new MutationObserver(tagIframes).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ["src"],
+    });
+  }
 })();

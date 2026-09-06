@@ -3,7 +3,8 @@
   "name": "Pesky Ads Blocker",
   "version": "1.0.0",
   "description": "Removes hidden click-hijacking overlays that redirect you to ad sites instead of letting you use the page.",
-  "permissions": ["storage"],
+  "permissions": ["webNavigation", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
